@@ -10,7 +10,8 @@ fi
 
 certoraRun \
   contracts/Marketplace.sol \
---verify Marketplace:certora/specs/Marketplace.spec \
+  certora/harness/MarketplaceHarness.sol \
+--verify MarketplaceHarness:certora/specs/Marketplace.spec \
 --optimistic_loop \
 --loop_iter 3 \
 --rule_sanity "basic" \
