@@ -20,6 +20,6 @@ contract MarketplaceHarness is Marketplace {
     }
 
     function tokenBalance() public view returns (uint256) {
-        return token.balanceOf(address(this));
+        return token().balanceOf(address(this));
     }
 }
