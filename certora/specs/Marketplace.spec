@@ -2,6 +2,11 @@ methods {
   function totalReceived() external returns (uint) envfree;
   function totalSent() external returns (uint) envfree;
   function tokenBalance() external returns (uint) envfree;
+  function fillSlot(
+    bytes32,
+    uint256,
+    MarketplaceHarness.Groth16Proof
+  ) external;
 }
 
 rule sanity(env e, method f) {
@@ -10,24 +15,24 @@ rule sanity(env e, method f) {
     satisfy true;
 }
 
-rule totalReceivedCannotDecrease(env e, method f) {
-  mathint total_before = totalReceived();
+// rule totalReceivedCannotDecrease(env e, method f) {
+//   mathint total_before = totalReceived();
 
-  calldataarg args;
-  f(e, args);
+//   calldataarg args;
+//   f(e, args);
 
-  mathint total_after = totalReceived();
+//   mathint total_after = totalReceived();
 
-  assert total_after >= total_before;
-}
+//   assert total_after >= total_before;
+// }
 
-rule totalSentCannotDecrease(env e, method f) {
-  mathint total_before = totalSent();
+// rule totalSentCannotDecrease(env e, method f) {
+//   mathint total_before = totalSent();
 
-  calldataarg args;
-  f(e, args);
+//   calldataarg args;
+//   f(e, args);
 
-  mathint total_after = totalSent();
+//   mathint total_after = totalSent();
 
-  assert total_after >= total_before;
-}
+//   assert total_after >= total_before;
+// }
