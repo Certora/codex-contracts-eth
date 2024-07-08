@@ -1,38 +1,76 @@
+using ERC20A as Token;
+
 methods {
-  function totalReceived() external returns (uint) envfree;
-  function totalSent() external returns (uint) envfree;
-  function tokenBalance() external returns (uint) envfree;
-  function fillSlot(
-    bytes32,
-    uint256,
-    MarketplaceHarness.Groth16Proof
-  ) external;
+
 }
+
+
+/*--------------------------------------------
+|              Ghosts and hooks              |
+--------------------------------------------*/
+
+ghost mathint totalReceived;
+
+hook Sload uint256 defaultValue currentContract._marketplaceTotals.received {
+    require totalReceived >= to_mathint(defaultValue);
+}
+
+hook Sstore currentContract._marketplaceTotals.received uint256 defaultValue (uint256 defaultValue_old) {
+    totalReceived = totalReceived + defaultValue - defaultValue_old;
+}
+
+ghost mathint totalSent;
+
+hook Sload uint256 defaultValue currentContract._marketplaceTotals.sent {
+    require totalSent >= to_mathint(defaultValue);
+}
+
+hook Sstore currentContract._marketplaceTotals.sent uint256 defaultValue (uint256 defaultValue_old) {
+    totalSent = totalSent + defaultValue - defaultValue_old;
+}
+
+
+
+/*--------------------------------------------
+|                 Properties                 |
+--------------------------------------------*/
 
 rule sanity(env e, method f) {
     calldataarg args;
     f(e, args);
+    assert true;
     satisfy true;
 }
 
-// rule totalReceivedCannotDecrease(env e, method f) {
-//   mathint total_before = totalReceived();
+rule totalReceivedCannotDecrease(env e, method f) {
+    mathint total_before = totalReceived;
 
-//   calldataarg args;
-//   f(e, args);
+    calldataarg args;
+    f(e, args);
 
-//   mathint total_after = totalReceived();
+    mathint total_after = totalReceived;
 
-//   assert total_after >= total_before;
-// }
+    assert total_after >= total_before;
+}
 
-// rule totalSentCannotDecrease(env e, method f) {
-//   mathint total_before = totalSent();
+rule totalSentCannotDecrease(env e, method f) {
+    mathint total_before = totalSent;
 
-//   calldataarg args;
-//   f(e, args);
+    calldataarg args;
+    f(e, args);
 
-//   mathint total_after = totalSent();
+    mathint total_after = totalSent;
 
-//   assert total_after >= total_before;
-// }
+    assert total_after >= total_before;
+}
+
+rule whatCanChangeCOntractTOkenBalance(env e, method f) {
+    uint256 tokenBalanceBefore = Token.balanceOf(e, currentContract);
+
+    calldataarg args;
+    f(e, args);
+
+    uint256 tokenBalanceAfter = Token.balanceOf(e, currentContract);
+
+    assert tokenBalanceBefore == tokenBalanceAfter;
+}
