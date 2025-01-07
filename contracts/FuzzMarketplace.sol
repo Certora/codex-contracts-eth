@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.23;
 
 import "./TestToken.sol";
 import "./Marketplace.sol";
+import "./TestVerifier.sol";
 
 contract FuzzMarketplace is Marketplace {
   constructor()
     Marketplace(
+      MarketplaceConfig(
+        CollateralConfig(10, 5, 3, 10),
+        ProofConfig(10, 5, 64, "", 67),
+        SlotReservationsConfig(20)
+      ),
       new TestToken(),
-      MarketplaceConfig(CollateralConfig(10, 5, 3, 10), ProofConfig(10, 5, 64))
+      new TestVerifier()
     )
   // solhint-disable-next-line no-empty-blocks
   {
@@ -27,6 +33,6 @@ contract FuzzMarketplace is Marketplace {
 
   function neverLoseFunds() public view {
     uint256 total = _marketplaceTotals.received - _marketplaceTotals.sent;
-    assert(token.balanceOf(address(this)) >= total);
+    assert(token().balanceOf(address(this)) >= total);
   }
 }

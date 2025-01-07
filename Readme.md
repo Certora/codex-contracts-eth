@@ -25,6 +25,23 @@ To start a local Ethereum node with the contracts deployed, execute:
 This will create a `deployment-localhost.json` file containing the addresses of
 the deployed contracts.
 
+
+Running the prover
+------------------
+
+To run the formal verification rules using Certora, first, make sure you have Java (JDK >= 11.0) installed on your machine, and then  install the Certora CLI
+
+```
+$ pip install certora-cli
+```
+
+Once that is done the `certoraRun` command can be used to send CVL specs to the prover.
+
+You can run Certora's specs with the provided `npm` script:
+
+    npm run verify
+
+
 Overview
 --------
 
@@ -78,7 +95,7 @@ price of the contract. The payment is only released to the host upon successful
 completion of the contract.
 
 Collateral
-------
+----------
 
 To motivate a host to remain honest, it must put up some collateral before it is
 allowed to participate in storage contracts. The collateral may not be withdrawn
@@ -118,11 +135,6 @@ References
 
 To Do
 -----
-
-  * Actual proofs
-
-    Because the actual proof of retrievability algorithm hasn't been determined yet
-    we're using a dummy algorithm for now.
 
   * Contract repair
 

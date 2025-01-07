@@ -1,4 +1,5 @@
 const { Assertion } = require("chai")
+const { currentTime } = require("./evm")
 
 const RequestState = {
   New: 0,
@@ -15,9 +16,10 @@ const SlotState = {
   Failed: 3,
   Paid: 4,
   Cancelled: 5,
+  Repair: 6,
 }
 
-const enableRequestAssertions = function () {
+function enableRequestAssertions() {
   // language chain method
   Assertion.addMethod("request", function (request) {
     var actual = this._obj
@@ -46,4 +48,8 @@ const enableRequestAssertions = function () {
   })
 }
 
-module.exports = { RequestState, SlotState, enableRequestAssertions }
+module.exports = {
+  RequestState,
+  SlotState,
+  enableRequestAssertions,
+}

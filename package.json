@@ -7,8 +7,12 @@
     "start": "hardhat node --export deployment-localhost.json",
     "compile": "hardhat compile",
     "format": "prettier --write contracts/**/*.sol test/**/*.js",
+    "format:check": "prettier --check contracts/**/*.sol test/**/*.js",
     "lint": "solhint contracts/**.sol",
-    "deploy": "hardhat deploy"
+    "deploy": "hardhat deploy",
+    "verify": "npm run verify:marketplace && npm run verify:state_changes",
+    "verify:marketplace": "certoraRun certora/confs/Marketplace.conf",
+    "verify:state_changes": "certoraRun certora/confs/StateChanges.conf"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",

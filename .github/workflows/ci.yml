@@ -1,20 +1,91 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
 
 jobs:
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm install
+      - run: npm run format:check
+
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18.15
       - run: npm install
       - run: npm test
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: fuzzing/corpus
           key: fuzzing
       - run: npm run fuzz
+
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with: { python-version: 3.9 }
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+          java-package: 'jre'
+
+      - name: Install Certora CLI
+        run: pip3 install certora-cli==7.10.2
+
+      - name: Install Solidity
+        run: |
+          wget https://github.com/ethereum/solidity/releases/download/v0.8.23/solc-static-linux
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: "lts/*"
+
+      - name: Install the Node.js dependencies
+        run: npm install
+
+      - name: Verify rules
+        run: |
+          npm run ${{matrix.rule}}
+        env:
+          CERTORAKEY: ${{ secrets.CERTORAKEY }}
+
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        rule:
+          - verify:marketplace
+          - verify:state_changes
+

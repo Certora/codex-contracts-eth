@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.23;
 
 import "./Proofs.sol";
 
@@ -7,8 +7,10 @@ import "./Proofs.sol";
 contract TestProofs is Proofs {
   mapping(SlotId => SlotState) private _states;
 
-  // solhint-disable-next-line no-empty-blocks
-  constructor(ProofConfig memory config) Proofs(config) {}
+  constructor(
+    ProofConfig memory config,
+    IGroth16Verifier verifier
+  ) Proofs(config, verifier) {} // solhint-disable-line no-empty-blocks
 
   function slotState(SlotId slotId) public view override returns (SlotState) {
     return _states[slotId];
@@ -20,6 +22,14 @@ contract TestProofs is Proofs {
 
   function markProofAsMissing(SlotId id, Period period) public {
     _markProofAsMissing(id, period);
+  }
+
+  function proofReceived(
+    SlotId id,
+    Groth16Proof calldata proof,
+    uint[] memory pubSignals
+  ) public {
+    _proofReceived(id, proof, pubSignals);
   }
 
   function setSlotState(SlotId id, SlotState state) public {

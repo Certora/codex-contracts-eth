@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.8;
+pragma solidity 0.8.23;
 
 type RequestId is bytes32;
 type SlotId is bytes32;
@@ -8,7 +8,7 @@ struct Request {
   address client;
   Ask ask;
   Content content;
-  uint256 expiry; // timestamp as seconds since unix epoch at which this request expires
+  uint256 expiry; // amount of seconds since start of the request at which this request expires
   bytes32 nonce; // random nonce to differentiate between similar requests
 }
 
@@ -23,19 +23,8 @@ struct Ask {
 }
 
 struct Content {
-  string cid; // content id (if part of a larger set, the chunk cid)
-  Erasure erasure; // Erasure coding attributes
-  PoR por; // Proof of Retrievability parameters
-}
-
-struct Erasure {
-  uint64 totalChunks; // the total number of chunks in the larger data set
-}
-
-struct PoR {
-  bytes u; // parameters u_1..u_s
-  bytes publicKey; // public key
-  bytes name; // random name
+  string cid; // content id, used to download the dataset
+  bytes32 merkleRoot; // merkle root of the dataset, used to verify storage proofs
 }
 
 enum RequestState {
@@ -47,12 +36,13 @@ enum RequestState {
 }
 
 enum SlotState {
-  Free, // [default] not filled yet, or host has vacated the slot
+  Free, // [default] not filled yet
   Filled, // host has filled slot
   Finished, // successfully completed
   Failed, // the request has failed
   Paid, // host has been paid
-  Cancelled // when request was cancelled then slot is cancelled as well
+  Cancelled, // when request was cancelled then slot is cancelled as well
+  Repair // when slot slot was forcible freed (host was kicked out from hosting the slot because of too many missed proofs) and needs to be repaired
 }
 
 library Requests {
@@ -85,13 +75,7 @@ library Requests {
     }
   }
 
-  function pricePerSlot(
-    Request memory request
-  ) internal pure returns (uint256) {
-    return request.ask.duration * request.ask.reward;
-  }
-
-  function price(Request memory request) internal pure returns (uint256) {
-    return request.ask.slots * pricePerSlot(request);
+  function maxPrice(Request memory request) internal pure returns (uint256) {
+    return request.ask.slots * request.ask.duration * request.ask.reward;
   }
 }

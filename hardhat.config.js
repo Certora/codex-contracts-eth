@@ -4,8 +4,9 @@ require("hardhat-deploy-ethers")
 
 module.exports = {
   solidity: {
-    version: "0.8.8",
+    version: "0.8.23",
     settings: {
+      evmVersion: "paris",
       optimizer: {
         enabled: true,
         runs: 1000,
@@ -26,6 +27,12 @@ module.exports = {
     },
     codexdisttestnetwork: {
       url: `${process.env.DISTTEST_NETWORK_URL}`,
+    },
+    codex_devnet: {
+      url: `${process.env.CODEX_DEVNET_URL}`,
+    },
+    codex_testnet: {
+      url: `${process.env.CODEX_TESTNET_URL}`,
     },
     taiko_test: {
       url: "https://rpc.test.taiko.xyz",

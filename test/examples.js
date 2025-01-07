@@ -1,6 +1,5 @@
 const { ethers } = require("hardhat")
 const { hours } = require("./time")
-const { currentTime } = require("./evm")
 const { hexlify, randomBytes } = ethers.utils
 
 const exampleConfiguration = () => ({
@@ -14,11 +13,15 @@ const exampleConfiguration = () => ({
     period: 10,
     timeout: 5,
     downtime: 64,
+    zkeyHash: "",
+    downtimeProduct: 67,
+  },
+  reservations: {
+    maxReservations: 3,
   },
 })
 
 const exampleRequest = async () => {
-  const now = await currentTime()
   return {
     client: hexlify(randomBytes(20)),
     ask: {
@@ -32,18 +35,28 @@ const exampleRequest = async () => {
     },
     content: {
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
-      erasure: {
-        totalChunks: 12,
-      },
-      por: {
-        u: Array.from(randomBytes(480)),
-        publicKey: Array.from(randomBytes(96)),
-        name: Array.from(randomBytes(512)),
-      },
+      merkleRoot: Array.from(randomBytes(32)),
     },
-    expiry: now + hours(1),
+    expiry: hours(1),
     nonce: hexlify(randomBytes(32)),
   }
 }
 
-module.exports = { exampleConfiguration, exampleRequest }
+const exampleProof = () => ({
+  a: { x: 1, y: 2 },
+  b: { x: [3, 4], y: [5, 6] },
+  c: { x: 7, y: 8 },
+})
+
+const invalidProof = () => ({
+  a: { x: 0, y: 0 },
+  b: { x: [0, 0], y: [0, 0] },
+  c: { x: 0, y: 0 },
+})
+
+module.exports = {
+  exampleConfiguration,
+  exampleRequest,
+  exampleProof,
+  invalidProof,
+}
