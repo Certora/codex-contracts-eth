@@ -110,15 +110,34 @@ hook Sstore _slots[KEY Marketplace.SlotId slotId].state Marketplace.SlotState ne
     }
 }
 
-ghost mapping(MarketplaceHarness.RequestId => uint256) slotsFilledGhost;
+
+ghost mapping(MarketplaceHarness.RequestId => mathint) slotsFilledGhost {
+    init_state axiom forall MarketplaceHarness.RequestId a. 
+        slotsFilledGhost[a] == 0;
+}
 
 hook Sload uint256 defaultValue _requestContexts[KEY MarketplaceHarness.RequestId RequestId].slotsFilled {
-    require slotsFilledGhost[RequestId] == defaultValue;
+    require slotsFilledGhost[RequestId] == to_mathint(defaultValue);
 }
 
 hook Sstore _requestContexts[KEY MarketplaceHarness.RequestId RequestId].slotsFilled uint256 defaultValue {
-    slotsFilledGhost[RequestId] = defaultValue;
+    slotsFilledGhost[RequestId] = to_mathint(defaultValue);
 }
+
+
+ghost mapping(MarketplaceHarness.RequestId => mathint) slotsGhost {
+    init_state axiom forall MarketplaceHarness.RequestId a. 
+        slotsGhost[a] == 0;
+}
+
+hook Sload uint64 defaultValue _requests[KEY MarketplaceHarness.RequestId RequestId].ask.slots {
+    require slotsGhost[RequestId] == to_mathint(defaultValue);
+}
+
+hook Sstore _requests[KEY MarketplaceHarness.RequestId RequestId].ask.slots uint64 defaultValue {
+    slotsGhost[RequestId] = to_mathint(defaultValue);
+}
+
 
 ghost mapping(MarketplaceHarness.RequestId => uint256) endsAtGhost;
 
@@ -380,7 +399,7 @@ rule slotStateChangesOnlyOncePerFunctionCall(env e, method f) {
 
     mathint slotStateChangesCountBefore = slotStateChangesCount;
     f(e, args);
-    mathint slotStateChangesCountAfter =slotStateChangesCount;
+    mathint slotStateChangesCountAfter = slotStateChangesCount;
 
     assert slotStateChangesCountAfter <= slotStateChangesCountBefore + 1;
 }
@@ -401,3 +420,117 @@ rule slotCanBeFreedAndPaidOnce {
   freeSlot@withrevert(e, slotId, rewardRecipient, collateralRecipient);
 
   assert lastReverted;
+}
+
+
+
+
+
+
+
+// STATUS - in progress (https://prover.certora.com/output/3106/e55bba860cff4e68b3c805873db5e251/?anonymousKey=3c4d211b29eb8d1488b994914a60cf4ec9ac33f2)
+// New: https://prover.certora.com/output/3106/3f49d4ac95e74cfeaa1d5af03f7c73ed/?anonymousKey=20568d65cf7cbf0b9c6d6261ed656e65593df39b
+// Old: need invariants for a new request/empty request
+// Old: requestStorage(): make sure account isn't created already
+// slotsFilled <= slots
+invariant slotsFilledLessThanSlots(MarketplaceHarness.RequestId RequestId)
+    slotsFilledGhost[RequestId] <= slotsGhost[RequestId]
+    {
+        preserved fillSlot(MarketplaceHarness.RequestId requestId, uint256 slotIndex, Marketplace.Groth16Proof proof) with (env e1) {
+            Marketplace.SlotId slotId = getSlotId(e1, requestId, slotIndex);
+            require slotsFilledGhost[RequestId] == slotsGhost[RequestId] => currentContract.slotState(e1, slotId) == Marketplace.SlotState.Filled;
+        } 
+    }
+
+
+
+// ghost array for each request/slot (how many funds are in there).
+
+// invariant proves that slot contains expected/reserved amount
+
+
+
+
+
+
+
+
+
+// STATUS - in progress
+// invariant sumOfBalances >= real amount
+// https://prover.certora.com/output/3106/04ec374d22474e629c567862c90cb0d0/?anonymousKey=768089469768a575b1dfd36ca96e524ad8f32209
+// requestStorage() - need a hook for request as well or we just exclude this method?
+// fillSlot() - requestSlotMoney for oldRequestSlotMoney != 0 so we end up in the negative sum
+//      require SlotState.Free => requestSlotMoney == 0
+    // request is filled slot money is filled expiryFundsWithdraw
+    // request == Cancelled => request context money of id == 0
+    // request == New => request context money of id == expiryFundsWithdraw
+// markProofAsMissing() - need full implementation
+// 
+invariant checkingSum(env e)
+    sumOfRequestBalances + sumOfSlotBalances <= to_mathint(Token.balanceOf(e, currentContract));
+
+
+// need a ghost to mirror expiryFundsWithdraw
+
+
+
+// ghost sumOfSlotBalances
+ghost mathint sumOfRequestBalances {
+    init_state axiom sumOfRequestBalances == 0;
+}
+
+// ghost requestContextMoney
+ghost mapping(Marketplace.RequestId => uint256) requestContextMoney {
+    init_state axiom forall MarketplaceHarness.RequestId a. requestContextMoney[a] == 0;
+}
+
+hook Sstore _requestContexts[KEY Marketplace.RequestId id].fundsToReturnToClient uint256 newValue
+{
+    // request context state new -> requestContextMoney = newValue
+    // request context state cancelled -> requestContextMoney == 0
+    updateRequest(newValue, id);
+}
+
+hook Sstore _requestContexts[KEY Marketplace.RequestId id].state uint256 newValue
+{
+    // request context state new -> requestContextMoney = newValue / updateRequest(_requestContexts[id].expiryFundsWithdraw, id);
+    // request context state cancelled -> requestContextMoney == 0 / updateRequest(0, id);
+}
+
+function updateRequest(uint256 expiryFundsWithdrawChange, Marketplace.RequestId request) {
+    uint256 oldRequestContextMoney = requestContextMoney[request];
+    requestContextMoney[request] = expiryFundsWithdrawChange;
+    sumOfRequestBalances = sumOfRequestBalances + expiryFundsWithdrawChange - oldRequestContextMoney;
+}
+
+
+// STATUS - in progress
+// invariant requestSlotMoney == slot.currentCollateral
+invariant currentCollateralCheck(env e)
+    forall Marketplace.SlotId id. requestSlotMoney[id] == currentContract._slots[id].currentCollateral;
+
+// ghost requestSlotMoney
+ghost mapping(Marketplace.SlotId => uint256) requestSlotMoney {
+    init_state axiom forall Marketplace.SlotId a. requestSlotMoney[a] == 0;
+}
+
+// ghost sumOfSlotBalances
+ghost mathint sumOfSlotBalances {
+    init_state axiom sumOfSlotBalances == 0;
+}
+
+
+// hook for slot changes {
+//     inc(requestSlotMoneyIncrease, slot);
+// }
+hook Sstore _slots[KEY Marketplace.SlotId id].currentCollateral uint256 newValue
+{
+    updateSlot(newValue, id);
+}
+
+function updateSlot(uint256 requestSlotMoneyChange, Marketplace.SlotId slot) {
+    uint256 oldRequestSlotMoney = requestSlotMoney[slot];
+    requestSlotMoney[slot] = requestSlotMoneyChange;
+    sumOfSlotBalances = sumOfSlotBalances + requestSlotMoneyChange - oldRequestSlotMoney;
+}

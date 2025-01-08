@@ -25,4 +25,8 @@ contract MarketplaceHarness is Marketplace {
     function generateSlotId(RequestId requestId, uint256 slotIndex) public pure returns (SlotId) {
         return Requests.slotId(requestId, slotIndex);
     }
+
+    function getSlotId(RequestId requestId, uint256 slotIndex) public pure returns (SlotId) {
+        return Requests.slotId(requestId, slotIndex);
+    }
 }
