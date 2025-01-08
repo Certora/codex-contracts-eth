@@ -66,6 +66,7 @@ jobs:
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc
 
+
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:

@@ -401,4 +401,3 @@ rule slotCanBeFreedAndPaidOnce {
   freeSlot@withrevert(e, slotId, rewardRecipient, collateralRecipient);
 
   assert lastReverted;
-}
