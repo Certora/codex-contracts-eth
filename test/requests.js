@@ -16,9 +16,10 @@ const SlotState = {
   Failed: 3,
   Paid: 4,
   Cancelled: 5,
+  Repair: 6,
 }
 
-const enableRequestAssertions = function () {
+function enableRequestAssertions() {
   // language chain method
   Assertion.addMethod("request", function (request) {
     var actual = this._obj

@@ -36,12 +36,13 @@ enum RequestState {
 }
 
 enum SlotState {
-  Free, // [default] not filled yet, or host has vacated the slot
+  Free, // [default] not filled yet
   Filled, // host has filled slot
   Finished, // successfully completed
   Failed, // the request has failed
   Paid, // host has been paid
-  Cancelled // when request was cancelled then slot is cancelled as well
+  Cancelled, // when request was cancelled then slot is cancelled as well
+  Repair // when slot slot was forcible freed (host was kicked out from hosting the slot because of too many missed proofs) and needs to be repaired
 }
 
 library Requests {
@@ -74,13 +75,7 @@ library Requests {
     }
   }
 
-  function pricePerSlot(
-    Request memory request
-  ) internal pure returns (uint256) {
-    return request.ask.duration * request.ask.reward;
-  }
-
-  function price(Request memory request) internal pure returns (uint256) {
-    return request.ask.slots * pricePerSlot(request);
+  function maxPrice(Request memory request) internal pure returns (uint256) {
+    return request.ask.slots * request.ask.duration * request.ask.reward;
   }
 }
