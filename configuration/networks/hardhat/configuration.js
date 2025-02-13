@@ -2,8 +2,8 @@ module.exports = {
   collateral: {
     repairRewardPercentage: 10,
     maxNumberOfSlashes: 2,
-    slashCriterion: 2,
     slashPercentage: 20,
+    validatorRewardPercentage: 20, // percentage of the slashed amount going to the validators
   },
   proofs: {
     // period has to be less than downtime * blocktime
@@ -11,9 +11,9 @@ module.exports = {
     period: 90, // seconds
     timeout: 30, // seconds
     downtime: 96, // number of blocks
-    downtimeProduct: 97 // number of blocks
+    downtimeProduct: 97, // number of blocks
   },
   reservations: {
-    maxReservations: 3
-  }
+    maxReservations: 3,
+  },
 }

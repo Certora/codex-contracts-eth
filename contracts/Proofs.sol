@@ -11,6 +11,15 @@ import "./Groth16.sol";
  * @notice Abstract contract that handles proofs tracking, validation and reporting functionality
  */
 abstract contract Proofs is Periods {
+  error Proofs_InsufficientBlockHeight();
+  error Proofs_InvalidProof();
+  error Proofs_ProofAlreadySubmitted();
+  error Proofs_PeriodNotEnded();
+  error Proofs_ValidationTimedOut();
+  error Proofs_ProofNotMissing();
+  error Proofs_ProofNotRequired();
+  error Proofs_ProofAlreadyMarkedMissing();
+
   ProofConfig private _config;
   IGroth16Verifier private _verifier;
 
@@ -22,18 +31,26 @@ abstract contract Proofs is Periods {
     ProofConfig memory config,
     IGroth16Verifier verifier
   ) Periods(config.period) {
-    require(block.number > 256, "Insufficient block height");
+    if (block.number <= 256) {
+      revert Proofs_InsufficientBlockHeight();
+    }
+
     _config = config;
     _verifier = verifier;
   }
 
   mapping(SlotId => uint256) private _slotStarts; // TODO: Should be smaller than uint256
-  mapping(SlotId => uint256) private _probabilities;
   mapping(SlotId => uint256) private _missed; // TODO: Should be smaller than uint256
   mapping(SlotId => mapping(Period => bool)) private _received;
   mapping(SlotId => mapping(Period => bool)) private _missing;
 
   function slotState(SlotId id) public view virtual returns (SlotState);
+
+  /**
+   * @param id  Slot's ID
+   * @return Integer which specifies the probability of how often the proofs will be required. Lower number means higher probability.
+   */
+  function slotProbability(SlotId id) public view virtual returns (uint256);
 
   /**
    * @return Number of missed proofs since Slot was Filled
@@ -52,13 +69,11 @@ abstract contract Proofs is Periods {
 
   /**
    * @param id Slot's ID for which the proofs should be started to require
-   * @param probability Integer which specifies the probability of how often the proofs will be required. Lower number means higher probability.
    * @notice Notes down the block's timestamp as Slot's starting time for requiring proofs
    *     and saves the required probability.
    */
-  function _startRequiringProofs(SlotId id, uint256 probability) internal {
+  function _startRequiringProofs(SlotId id) internal {
     _slotStarts[id] = block.timestamp;
-    _probabilities[id] = probability;
   }
 
   /**
@@ -133,7 +148,7 @@ abstract contract Proofs is Periods {
 
     /// Scaling of the probability according the downtime configuration
     /// See: https://github.com/codex-storage/codex-research/blob/41c4b4409d2092d0a5475aca0f28995034e58d14/design/storage-proof-timing.md#pointer-downtime
-    uint256 probability = (_probabilities[id] * (256 - _config.downtime)) / 256;
+    uint256 probability = slotProbability(id);
     isRequired = probability == 0 || uint256(challenge) % probability == 0;
   }
 
@@ -189,8 +204,9 @@ abstract contract Proofs is Periods {
     Groth16Proof calldata proof,
     uint[] memory pubSignals
   ) internal {
-    require(!_received[id][_blockPeriod()], "Proof already submitted");
-    require(_verifier.verify(proof, pubSignals), "Invalid proof");
+    if (_received[id][_blockPeriod()]) revert Proofs_ProofAlreadySubmitted();
+    if (!_verifier.verify(proof, pubSignals)) revert Proofs_InvalidProof();
+
     _received[id][_blockPeriod()] = true;
     emit ProofSubmitted(id);
   }
@@ -209,11 +225,13 @@ abstract contract Proofs is Periods {
    */
   function _markProofAsMissing(SlotId id, Period missedPeriod) internal {
     uint256 end = _periodEnd(missedPeriod);
-    require(end < block.timestamp, "Period has not ended yet");
-    require(block.timestamp < end + _config.timeout, "Validation timed out");
-    require(!_received[id][missedPeriod], "Proof was submitted, not missing");
-    require(_isProofRequired(id, missedPeriod), "Proof was not required");
-    require(!_missing[id][missedPeriod], "Proof already marked as missing");
+    if (end >= block.timestamp) revert Proofs_PeriodNotEnded();
+    if (block.timestamp >= end + _config.timeout)
+      revert Proofs_ValidationTimedOut();
+    if (_received[id][missedPeriod]) revert Proofs_ProofNotMissing();
+    if (!_isProofRequired(id, missedPeriod)) revert Proofs_ProofNotRequired();
+    if (_missing[id][missedPeriod]) revert Proofs_ProofAlreadyMarkedMissing();
+
     _missing[id][missedPeriod] = true;
     _missed[id] += 1;
   }
