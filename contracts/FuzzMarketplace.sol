@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.28;
 
 import "./TestToken.sol";
 import "./Marketplace.sol";
@@ -10,8 +10,9 @@ contract FuzzMarketplace is Marketplace {
     Marketplace(
       MarketplaceConfig(
         CollateralConfig(10, 5, 10, 20),
-        ProofConfig(10, 5, 64, "", 67),
-        SlotReservationsConfig(20)
+        ProofConfig(10, 5, 64, 67, ""),
+        SlotReservationsConfig(20),
+        60 * 60 * 24 * 30 // 30 days
       ),
       new TestToken(),
       new TestVerifier()

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
@@ -35,9 +35,11 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
   error Marketplace_InvalidState();
   error Marketplace_StartNotBeforeExpiry();
   error Marketplace_SlotNotAcceptingProofs();
+  error Marketplace_ProofNotSubmittedByHost();
   error Marketplace_SlotIsFree();
   error Marketplace_ReservationRequired();
   error Marketplace_NothingToWithdraw();
+  error Marketplace_DurationExceedsLimit();
 
   using EnumerableSet for EnumerableSet.Bytes32Set;
   using EnumerableSet for EnumerableSet.AddressSet;
@@ -55,7 +57,6 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
 
   struct RequestContext {
     RequestState state;
-    uint256 slotsFilled;
     /// @notice Tracks how much funds should be returned to the client as not all funds might be used for hosting the request
     /// @dev The sum starts with the full reward amount for the request and is reduced every time a host fills a slot.
     ///      The reduction is calculated from the duration of time between the slot being filled and the request's end.
@@ -64,9 +65,10 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     ///      This is possible, because technically it is not possible for this variable to reach 0 in "natural" way as
     ///      that would require all the slots to be filled at the same block as the request was created.
     uint256 fundsToReturnToClient;
-    uint256 startedAt;
-    uint256 endsAt;
-    uint256 expiresAt;
+    uint64 slotsFilled;
+    uint64 startedAt;
+    uint64 endsAt;
+    uint64 expiresAt;
   }
 
   struct Slot {
@@ -75,8 +77,8 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     /// @notice Timestamp that signals when slot was filled
     /// @dev Used for calculating payouts as hosts are paid
     ///      based on time they actually host the content
-    uint256 filledAt;
-    uint256 slotIndex;
+    uint64 filledAt;
+    uint64 slotIndex;
     /// @notice Tracks the current amount of host's collateral that is
     ///         to be payed out at the end of Slot's lifespan.
     /// @dev    When Slot is filled, the collateral is collected in amount
@@ -91,7 +93,7 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
 
   struct ActiveSlot {
     Request request;
-    uint256 slotIndex;
+    uint64 slotIndex;
   }
 
   constructor(
@@ -131,8 +133,9 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     RequestId id = request.id();
 
     if (request.client != msg.sender) revert Marketplace_InvalidClientAddress();
-    if (_requests[id].client != address(0))
+    if (_requests[id].client != address(0)) {
       revert Marketplace_RequestAlreadyExists();
+    }
     if (request.expiry == 0 || request.expiry >= request.ask.duration)
       revert Marketplace_InvalidExpiry();
     if (request.ask.slots == 0) revert Marketplace_InsufficientSlots();
@@ -153,10 +156,15 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     if (bytes(request.content.cid).length == 0) {
       revert Marketplace_InvalidCid();
     }
+    if (request.ask.duration > _config.requestDurationLimit) {
+      revert Marketplace_DurationExceedsLimit();
+    }
 
     _requests[id] = request;
-    _requestContexts[id].endsAt = block.timestamp + request.ask.duration;
-    _requestContexts[id].expiresAt = block.timestamp + request.expiry;
+    _requestContexts[id].endsAt =
+      uint64(block.timestamp) +
+      request.ask.duration;
+    _requestContexts[id].expiresAt = uint64(block.timestamp) + request.expiry;
 
     _addToMyRequests(request.client, id);
 
@@ -169,7 +177,7 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
   }
 
   /**
-     * @notice Fills a slot. Reverts if an invalid proof of the slot data is
+   * @notice Fills a slot. Reverts if an invalid proof of the slot data is
      provided.
    * @param requestId RequestId identifying the request containing the slot to
      fill.
@@ -178,7 +186,7 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
    */
   function fillSlot(
     RequestId requestId,
-    uint256 slotIndex,
+    uint64 slotIndex,
     Groth16Proof calldata proof
   ) public requestIsKnown(requestId) {
     Request storage request = _requests[requestId];
@@ -201,11 +209,11 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
       revert Marketplace_SlotNotFree();
     }
 
+    slot.host = msg.sender;
+    slot.filledAt = uint64(block.timestamp);
+
     _startRequiringProofs(slotId);
     submitProof(slotId, proof);
-
-    slot.host = msg.sender;
-    slot.filledAt = block.timestamp;
 
     context.slotsFilled += 1;
     context.fundsToReturnToClient -= _slotPayout(requestId, slot.filledAt);
@@ -237,7 +245,7 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
       context.state == RequestState.New // Only New requests can "start" the requests
     ) {
       context.state = RequestState.Started;
-      context.startedAt = block.timestamp;
+      context.startedAt = uint64(block.timestamp);
       emit RequestFulfilled(requestId);
     }
   }
@@ -314,6 +322,11 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     Groth16Proof calldata proof
   ) public requestIsKnown(_slots[id].requestId) {
     Slot storage slot = _slots[id];
+
+    if (msg.sender != slot.host) {
+      revert Marketplace_ProofNotSubmittedByHost();
+    }
+
     Request storage request = _requests[slot.requestId];
     uint256[] memory pubSignals = new uint256[](3);
     pubSignals[0] = _challengeToFieldElement(getChallenge(id));
@@ -379,7 +392,7 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
       context.state == RequestState.Started
     ) {
       context.state = RequestState.Failed;
-      context.endsAt = block.timestamp - 1;
+      context.endsAt = uint64(block.timestamp) - 1;
       emit RequestFailed(requestId);
     }
   }
@@ -550,17 +563,19 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     return _slots[slotId].state == SlotState.Free;
   }
 
-  function requestEnd(RequestId requestId) public view returns (uint256) {
-    uint256 end = _requestContexts[requestId].endsAt;
+  function requestEnd(RequestId requestId) public view returns (uint64) {
     RequestState state = requestState(requestId);
     if (state == RequestState.New || state == RequestState.Started) {
-      return end;
-    } else {
-      return Math.min(end, block.timestamp - 1);
+      return _requestContexts[requestId].endsAt;
     }
+    if (state == RequestState.Cancelled) {
+      return _requestContexts[requestId].expiresAt;
+    }
+    return
+      uint64(Math.min(_requestContexts[requestId].endsAt, block.timestamp));
   }
 
-  function requestExpiry(RequestId requestId) public view returns (uint256) {
+  function requestExpiry(RequestId requestId) public view returns (uint64) {
     return _requestContexts[requestId].expiresAt;
   }
 
@@ -573,7 +588,7 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
    */
   function _slotPayout(
     RequestId requestId,
-    uint256 startingTimestamp
+    uint64 startingTimestamp
   ) private view returns (uint256) {
     return
       _slotPayout(
@@ -586,8 +601,8 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
   /// @notice Calculates the amount that should be paid out to a host based on the specified time frame.
   function _slotPayout(
     RequestId requestId,
-    uint256 startingTimestamp,
-    uint256 endingTimestamp
+    uint64 startingTimestamp,
+    uint64 endingTimestamp
   ) private view returns (uint256) {
     Request storage request = _requests[requestId];
     if (startingTimestamp >= endingTimestamp)
@@ -607,12 +622,13 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     RequestContext storage context = _requestContexts[requestId];
     if (
       context.state == RequestState.New &&
-      block.timestamp > requestExpiry(requestId)
+      uint64(block.timestamp) > requestExpiry(requestId)
     ) {
       return RequestState.Cancelled;
     } else if (
       (context.state == RequestState.Started ||
-        context.state == RequestState.New) && block.timestamp > context.endsAt
+        context.state == RequestState.New) &&
+      uint64(block.timestamp) > context.endsAt
     ) {
       return RequestState.Finished;
     } else {
@@ -656,11 +672,11 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
       revert Marketplace_TransferFailed();
   }
 
-  event StorageRequested(RequestId requestId, Ask ask, uint256 expiry);
+  event StorageRequested(RequestId requestId, Ask ask, uint64 expiry);
   event RequestFulfilled(RequestId indexed requestId);
   event RequestFailed(RequestId indexed requestId);
-  event SlotFilled(RequestId indexed requestId, uint256 slotIndex);
-  event SlotFreed(RequestId indexed requestId, uint256 slotIndex);
+  event SlotFilled(RequestId indexed requestId, uint64 slotIndex);
+  event SlotFreed(RequestId indexed requestId, uint64 slotIndex);
   event RequestCancelled(RequestId indexed requestId);
 
   struct MarketplaceTotals {

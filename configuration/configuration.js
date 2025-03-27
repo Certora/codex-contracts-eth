@@ -15,10 +15,12 @@ const DEFAULT_CONFIGURATION = {
     timeout: 30, // seconds
     downtime: 64, // number of blocks
     downtimeProduct: 67, // number of blocks
+    zkeyHash: "",
   },
   reservations: {
     maxReservations: 3,
   },
+  requestDurationLimit: 60*60*24*30 // 30 days
 }
 
 function loadConfiguration(name) {

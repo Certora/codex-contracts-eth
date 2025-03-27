@@ -13,12 +13,13 @@ const exampleConfiguration = () => ({
     period: 10,
     timeout: 5,
     downtime: 64,
-    zkeyHash: "",
     downtimeProduct: 67,
+    zkeyHash: "",
   },
   reservations: {
     maxReservations: 3,
   },
+  requestDurationLimit: 60 * 60 * 24 * 30, // 30 days
 })
 
 const exampleRequest = async () => {

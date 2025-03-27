@@ -4,7 +4,7 @@ require("hardhat-deploy-ethers")
 
 module.exports = {
   solidity: {
-    version: "0.8.23",
+    version: "0.8.28",
     settings: {
       evmVersion: "paris",
       optimizer: {
@@ -24,6 +24,7 @@ module.exports = {
   networks: {
     hardhat: {
       tags: ["local"],
+      allowBlocksWithSameTimestamp: true
     },
     codexdisttestnetwork: {
       url: `${process.env.DISTTEST_NETWORK_URL}`,
