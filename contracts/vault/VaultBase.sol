@@ -134,6 +134,11 @@ abstract contract VaultBase {
 
     account.balance.available += amount;
     fund.value += amount;
+                        // account.balance.available + account.balance.designated + ((incoming - outgoing) * (fund.flowEnd() - flow.updated)) == fund.value
+                        // recompute if we freeze / update fund.flowEnd()
+                        // recompute if we update one of the first four vars
+
+                        // timestamps are monotonic
 
     _token.safeTransferFrom(
       Controller.unwrap(controller),

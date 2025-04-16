@@ -87,7 +87,10 @@ library Accounts {
   /// is a flow of incoming tokens, then its rate is increased accordingly.
   function flowIn(Account memory account, TokensPerSecond rate) internal view {
     account.update(Timestamps.currentTime());
-    account.flow.incoming = account.flow.incoming + rate;
+    account.flow.incoming = account.flow.incoming + rate;              // Question: why there is no TokensPerSecond.wrap(0); for outgoing?
+                                                                            // Property: if you have outflow, it doesn't outflow to fast
+                                                                            // Property: have enough funds for outgoing 
+                                                                            // Suggestion: to use int for flow
   }
 
   /// Starts an outgoing flow of tokens at the specified rate. If there is
